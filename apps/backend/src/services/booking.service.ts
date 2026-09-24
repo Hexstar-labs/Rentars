@@ -86,6 +86,10 @@ export interface CreateBookingInput {
   guest_count: number;
   total_price: number;
   rules_acknowledged_at?: string;
+  /** Platform policy version string the tenant agreed to (from GET /api/v1/policy/current). */
+  terms_version?: string;
+  /** UTC timestamp when the tenant accepted the terms. */
+  terms_accepted_at?: string;
   on_chain_property_id?: bigint;
 }
 
@@ -282,7 +286,7 @@ export class BookingService {
    *   7. Create on-chain booking record
    */
   async createBooking(input: CreateBookingInput): Promise<ServiceResponse<Booking>> {
-    const { property_id, tenant_id, check_in, check_out, guest_count, total_price, rules_acknowledged_at } = input;
+    const { property_id, tenant_id, check_in, check_out, guest_count, total_price, rules_acknowledged_at, terms_version, terms_accepted_at } = input;
 
     if (!property_id || !tenant_id || !check_in || !check_out) {
       return {
@@ -425,6 +429,8 @@ export class BookingService {
         p_total_price: total_price,
         p_guest_count: guest_count,
         p_rules_acknowledged_at: rules_acknowledged_at ?? null,
+        p_terms_version: terms_version ?? null,
+        p_terms_accepted_at: terms_accepted_at ?? null,
       },
     );
 
