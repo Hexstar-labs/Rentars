@@ -224,3 +224,29 @@ jobs:
           name: playwright-report-journey
           path: apps/web/playwright-report/
           retention-days: 14
+
+  # ─── Job 6: Documentation link check ────────────────────────────────────────
+  # Verifies that all relative file paths referenced in Markdown docs exist in
+  # the repository. Broken links (e.g. after a file rename) fail this job.
+  docs-link-check:
+    name: Documentation Link Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check Markdown links
+        uses: lycheeverse/lychee-action@v2
+        with:
+          # Only check local file links (skip external URLs to avoid flaky network failures)
+          args: >
+            --no-progress
+            --exclude-loopback
+            --include-verbatim
+            --offline
+            CONTRIBUTING.md
+            README.md
+            docs/**/*.md
+            apps/backend/README.md
+            apps/backend/database/README.md
+            apps/backend/database/MIGRATIONS_NAMING.md
+          fail: true

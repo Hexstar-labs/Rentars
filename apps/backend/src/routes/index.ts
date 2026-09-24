@@ -15,6 +15,8 @@ import propertyRoutes from './property.routes.js';
 import pushRoutes from './push.routes.js';
 import reviewRoutes from './review.routes.js';
 import savedSearchRoutes from './savedSearch.routes.js';
+import policyRoutes from './policy.routes.js';
+import privacyRoutes from './privacy.routes.js';
 
 const router = Router();
 
@@ -53,6 +55,8 @@ apiV1.use('/payments', paymentRoutes);
 apiV1.use('/push', pushRoutes);
 apiV1.use('/exchange-rates', exchangeRateRoutes);
 apiV1.use('/saved-searches', savedSearchRoutes);
+apiV1.use('/policy', policyRoutes);
+apiV1.use('/privacy', privacyRoutes);
 
 router.use('/api/v1', apiV1);
 
