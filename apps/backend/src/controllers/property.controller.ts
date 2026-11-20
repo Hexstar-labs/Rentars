@@ -18,10 +18,6 @@ import {
   type AdvancedSearchFilters,
   type Property,
 } from '@/services/property.service.js';
-import {
-  getAvailabilityRanges,
-  setAvailabilityRanges,
-} from '@/services/availability.service.js';
 import { trackSearch, getSearchSuggestions, getTrendingSearches, trackSuggestionEvent } from '@/services/searchAnalytics.service.js';
 import { computeZeroResultSuggestions, getPriceHistogram } from '@/services/propertySearch.service.js';
 import { supabase } from '@/config/supabase.js';
@@ -408,29 +404,6 @@ export async function trackSuggestionAcceptedHandler(req: Request, res: Response
 }
 
 // ─── Availability ─────────────────────────────────────────────────────────────
-
-export async function getAvailability(req: Request, res: Response): Promise<void> {
-  try {
-    const ranges = await getAvailabilityRanges(req.params.id);
-    res.json(ranges);
-  } catch (err) {
-    res.status(500).json({ error: (err as Error).message });
-  }
-}
-
-export async function setAvailability(req: AuthRequest, res: Response): Promise<void> {
-  try {
-    const ranges = await setAvailabilityRanges(req.params.id, req.userId!, req.body.ranges);
-    res.json(ranges);
-  } catch (err) {
-    const message = (err as Error).message;
-    if (message.startsWith('Forbidden') || message === 'Property not found') {
-      res.status(message.startsWith('Forbidden') ? 403 : 404).json({ error: message });
-      return;
-    }
-    res.status(400).json({ error: message });
-  }
-}
 
 // ─── Duplicate ────────────────────────────────────────────────────────────────
 
