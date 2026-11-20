@@ -6,6 +6,7 @@
  * error handling is consistent.
  */
 
+import { randomUUID } from 'node:crypto';
 import { supabase } from '@/config/supabase.js';
 import * as cache from './cache.service.js';
 import type { ServiceResponse } from './index.js';
@@ -27,6 +28,11 @@ export interface PropertyImage {
 const TTL_ALL = 60;
 const TTL_ONE = 300;
 const TTL_FEATURED = 120;
+
+/** Postgres unique_violation: the slug unique index rejected an insert. */
+const UNIQUE_VIOLATION = '23505';
+/** Fresh ids to try when a generated slug collides before giving up. */
+const SLUG_INSERT_ATTEMPTS = 3;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -315,35 +321,38 @@ export async function createProperty(
 
   // Guard against titles that produce no valid slug (#418).
   // generateSlug falls back to "property-<suffix>" for empty bases, but a title
-  // with no sluggable characters is itself invalid — reject it early.
-  const prospectiveSlug = generateSlug(trimmedTitle, payload.city, 'probe');
-  if (prospectiveSlug.startsWith('property-')) {
+  // with no letters or digits at all is invalid. Non-Latin titles are allowed:
+  // they get the "property" base plus the id suffix, which stays unique.
+  if (!/[\p{L}\p{N}]/u.test(trimmedTitle)) {
     return { success: false, error: 'Property title must contain at least one letter or digit' };
   }
 
-  const { data, error } = await supabase
-    .from('properties')
-    .insert(sanitized)
-    .select()
-    .single();
+  // The slug is derived from the id, so choose the id first and write the row
+  // once, with its slug. A separate follow-up UPDATE could fail and leave a
+  // listing with no URL. If the slug collides with the unique index, draw a
+  // fresh id and try again.
+  let property: Property | null = null;
+  let lastError: string | null = null;
+  for (let attempt = 0; attempt < SLUG_INSERT_ATTEMPTS && !property; attempt++) {
+    const id = randomUUID();
+    const slug = generateSlug(trimmedTitle, payload.city, id);
+    const { data, error } = await supabase
+      .from('properties')
+      .insert({ ...sanitized, id, slug })
+      .select()
+      .single();
 
-  if (error) {
-    return { success: false, error: error.message };
+    if (!error) {
+      property = data as Property;
+    } else if ((error as { code?: string }).code === UNIQUE_VIOLATION) {
+      lastError = error.message;
+    } else {
+      return { success: false, error: error.message };
+    }
   }
 
-  const property = data as Property;
-
-  // Generate and persist the URL slug now that we have the row id
-  const slug = generateSlug(property.title, property.city, property.id);
-  const { error: slugErr } = await supabase
-    .from('properties')
-    .update({ slug })
-    .eq('id', property.id);
-
-  if (!slugErr) {
-    property.slug = slug;
-  } else {
-    console.error('[createProperty] Failed to set slug:', slugErr.message);
+  if (!property) {
+    return { success: false, error: lastError ?? 'Could not allocate a unique listing slug' };
   }
 
   await Promise.all([
@@ -405,7 +414,10 @@ export async function updateProperty(
   }
 
   // Sanitize user-generated text fields before storing
-  const sanitized: Partial<Property> = { ...payload };
+  // The slug is server-owned and immutable once set (migration 00072). Drop any
+  // client-supplied value rather than letting the write fail.
+  const { slug: _clientSlug, ...payloadWithoutSlug } = payload;
+  const sanitized: Partial<Property> = { ...payloadWithoutSlug };
   if (payload.title !== undefined) {
     sanitized.title = sanitizeShortText(payload.title, 255);
   }

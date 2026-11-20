@@ -62,3 +62,18 @@ Known limitation: the purge fetches one batch of candidates per run. If more
 than one batch of soft-deleted listings all have booking history, those
 candidates can stall the batch until they are handled manually. This is
 acceptable at current volumes and is recorded here so it is not forgotten.
+
+## Slugs (#924)
+
+- Format: `<title>-<city>-<6-char id prefix>`, lowercase ASCII, hyphen-separated.
+  Accents are folded (`Café` becomes `cafe`). A title with no Latin letters uses
+  the base `property`. A title with no letters or digits at all is rejected.
+- Generated once, at creation, from the listing's own id. The id is chosen before
+  the insert, so the row is written once with its slug. A slug collision (unique
+  index) draws a new id and retries up to 3 times. It never leaves a listing
+  without a slug.
+- **Immutable.** Title and city edits do not change the slug, and a client-supplied
+  `slug` is ignored. Migration `00072` enforces this in the database with a trigger
+  that rejects changes to an existing slug, and a format CHECK for new rows. An
+  old URL therefore keeps pointing at the same listing.
+- Legacy numeric-id URLs (`/properties/:id`) keep resolving.

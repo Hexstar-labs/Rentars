@@ -4,7 +4,12 @@
  * cache invalidation of featured variants.
  */
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
-import { type FakeSupabase, createFakeSupabase } from './helpers/fakeSupabase';
+import {
+  type FakeSupabase,
+  createFakeSupabase,
+  currentFakeSupabase,
+  useFakeSupabase,
+} from './helpers/fakeSupabase';
 
 const cacheDeleted: string[] = [];
 mock.module('../../src/services/cache.service.js', () => ({
@@ -18,10 +23,10 @@ mock.module('../../src/services/cache.service.js', () => ({
 
 let fake: FakeSupabase;
 // bun snapshots module exports, so export a stable object that delegates to the
-// current fake (reassigned per test).
+// fake installed for the current test (see helpers/fakeSupabase.ts).
 mock.module('../../src/config/supabase.js', () => ({
   supabase: {
-    from: (table: string) => fake.from(table),
+    from: (table: string) => currentFakeSupabase().from(table),
   },
 }));
 
@@ -32,11 +37,19 @@ const OTHER = 'someone-else';
 const FUTURE = '2999-01-10';
 const PAST = '2000-01-10';
 
+/** Make `f` the fake the module mock delegates to, and return it. */
+function install(f: FakeSupabase): FakeSupabase {
+  useFakeSupabase(f);
+  return f;
+}
+
 function seed(bookings: Array<Record<string, unknown>> = []): FakeSupabase {
-  return createFakeSupabase({
-    properties: [{ id: 'prop-1', owner_id: OWNER, deleted_at: null }],
-    bookings: bookings.map((b, i) => ({ id: `bk-${i}`, property_id: 'prop-1', ...b })),
-  });
+  return install(
+    createFakeSupabase({
+      properties: [{ id: 'prop-1', owner_id: OWNER, deleted_at: null }],
+      bookings: bookings.map((b, i) => ({ id: `bk-${i}`, property_id: 'prop-1', ...b })),
+    })
+  );
 }
 
 describe('deleteProperty — authorisation', () => {
@@ -72,10 +85,12 @@ describe('deleteProperty — authorisation', () => {
   });
 
   it('is idempotent for an already-deleted listing', async () => {
-    fake = createFakeSupabase({
-      properties: [{ id: 'prop-1', owner_id: OWNER, deleted_at: PAST }],
-      bookings: [],
-    });
+    fake = install(
+      createFakeSupabase({
+        properties: [{ id: 'prop-1', owner_id: OWNER, deleted_at: PAST }],
+        bookings: [],
+      })
+    );
     const result = await deleteProperty('prop-1', { id: OWNER });
     expect(result.success).toBe(true);
     expect(fake.tables.properties[0].deleted_at).toBe(PAST);

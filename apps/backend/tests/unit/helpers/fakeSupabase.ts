@@ -102,6 +102,19 @@ export function createFakeSupabase(initial: Record<string, Row[]> = {}): FakeSup
         }
         return builder;
       },
+      // Supports the comma-separated `col.is.null`, `col.eq.v`, `col.neq.v` terms.
+      or(expr: string) {
+        const terms = expr.split(',').map((t) => {
+          const [col, op, ...rest] = t.split('.');
+          const value = rest.join('.');
+          if (op === 'is' && value === 'null') return (r: Row) => (r[col] ?? null) === null;
+          if (op === 'eq') return (r: Row) => String(r[col]) === value;
+          if (op === 'neq') return (r: Row) => String(r[col]) !== value;
+          throw new Error(`fakeSupabase: unsupported or() term "${t}"`);
+        });
+        add(`or(${expr})`, (r) => terms.some((p) => p(r)));
+        return builder;
+      },
       limit(n: number) {
         limitTo = n;
         return builder;
@@ -143,4 +156,24 @@ export function createFakeSupabase(initial: Record<string, Row[]> = {}): FakeSup
   }
 
   return { from, tables, log };
+}
+
+const FAKE_KEY = '__rentarsFakeSupabase';
+
+/**
+ * Install the fake that the module-level supabase mock delegates to.
+ *
+ * bun caches module instances across test files in one process, so a mock that
+ * closes over one file's local variable would keep pointing at the first file's
+ * fake. Going through a global means every file's mock reads the current one.
+ */
+export function useFakeSupabase(fake: FakeSupabase): void {
+  (globalThis as Record<string, unknown>)[FAKE_KEY] = fake;
+}
+
+/** The fake installed by useFakeSupabase. Used inside mock.module factories. */
+export function currentFakeSupabase(): FakeSupabase {
+  const fake = (globalThis as Record<string, unknown>)[FAKE_KEY] as FakeSupabase | undefined;
+  if (!fake) throw new Error('fakeSupabase: no fake installed; call useFakeSupabase first');
+  return fake;
 }
