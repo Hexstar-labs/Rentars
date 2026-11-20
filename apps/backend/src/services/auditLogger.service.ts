@@ -43,6 +43,9 @@ export type AuditAction =
   | 'auth.password_reset_request'
   | 'auth.password_reset_confirm'
   | 'auth.email_verify'
+  | 'auth.email_verify_resend'
+  | 'auth.wallet_link'
+  | 'auth.wallet_unlink'
   | 'auth.unauthorized_access'
   // Properties
   | 'property.create'
@@ -86,6 +89,8 @@ export type AuditAction =
   // Admin
   | 'admin.user_suspend'
   | 'admin.user_activate'
+  | 'admin.user_role_change'
+  | 'admin.user_role_change_denied'
   | 'admin.user_delete'
   | 'admin.property_suspend'
   | 'admin.property_activate'

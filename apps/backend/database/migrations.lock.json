@@ -101,9 +101,6 @@
   "00069_escrow_reconciliation_durability.sql": "1b7b6e6d4b70e238d70b1a053c0872d09da7d478eb44e18503bd61a4c5c7deb3",
   "00069_push_subscriptions_endpoint_ownership.sql": "8bce9ee17169b594a0c227b2356f2a4ca078b935b11d86c38d510c40f8986083",
   "00070_booking_modification_expiry.sql": "451a72e004ac8a4bf0be9734a9e8fde872204cb4e338d8972b477e93fffd7db6",
-  "00071_booking_property_fk_restrict.sql": "fd10b4c50b081d07cfea090f2cf3349fa0bebbf6c2ad1a917d21d1a345043722",
-  "00072_property_slug_immutability.sql": "380b7ddf1f72aeb803bf10e2c89d311cc12bc8909c31de6291eef4d7dc163503",
-  "00073_reserving_status_exclusion.sql": "35e5b6ad14489618af7cebe1e3807b1a13994c116cd33affd3f1b8b04223a4e7",
-  "00074_booking_pricing_snapshot.sql": "c50fa811db27e7a71a1ea0b236844a1e150bac687d9f52dc5d378ba3aed9a384",
+  "00071_wallet_link_policy.sql": "7de121cf2d8823b56899f67097d867f9776dafb9192e58f5a4d4c30b2e539256",
   "007_create_reconciliation_cases.sql": "5c2582b68f59154a4a2ec7fe401a345bc81397108309a32cc7cb578caee17065"
 }
