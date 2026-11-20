@@ -206,10 +206,29 @@ export async function updatePropertyHandler(req: AuthRequest, res: Response): Pr
   res.json(result.data);
 }
 
-export async function deletePropertyHandler(req: Request, res: Response): Promise<void> {
-  const result = await deleteProperty(req.params.id);
+/**
+ * DELETE /api/v1/properties/:id
+ *
+ * Soft-deletes a listing. Only the owner or an administrator may do so, and a
+ * listing with unfinished reservations is refused with 409
+ * PROPERTY_HAS_ACTIVE_BOOKINGS. See docs/listing-lifecycle.md.
+ */
+export async function deletePropertyHandler(req: AuthRequest, res: Response): Promise<void> {
+  const actorId = req.userId ?? req.user?.id;
+  if (!actorId) {
+    res.status(401).json({ error: 'Authentication required' });
+    return;
+  }
+
+  const result = await deleteProperty(req.params.id, {
+    id: actorId,
+    role: req.user?.role,
+  });
   if (!result.success) {
-    res.status(400).json({ error: result.error });
+    res.status(result.statusCode ?? 400).json({
+      error: result.error,
+      ...(result.code ? { code: result.code } : {}),
+    });
     return;
   }
   res.status(204).send();
