@@ -30,7 +30,8 @@ mock.module('../../src/config/supabase.js', () => ({
   },
 }));
 
-const { deleteProperty } = await import('../../src/services/property.service.js');
+// Isolated instance: see listing-availability.test.ts for why.
+const { deleteProperty } = await import('../../src/services/property.service.ts?lifecycle-spec');
 
 const OWNER = 'owner-1';
 const OTHER = 'someone-else';

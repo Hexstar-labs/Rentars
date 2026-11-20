@@ -1,6 +1,8 @@
 import { supabase } from '@/config/supabase.js';
 import type { ServiceResponse } from './index.js';
 import { signQuoteToken, verifyQuoteToken } from '@/utils/quoteToken.js';
+import { RESERVING_BOOKING_STATUSES } from '@/utils/bookingStatus.js';
+import { toDay } from '@/utils/availabilityRange.js';
 
 const PLATFORM_FEE_PCT = 0.05;
 /** How long a quote (and its token) stays valid before the client must re-quote. */
@@ -103,12 +105,12 @@ export async function calculateRangePrice(
     .lte('start_date', checkOut)
     .gte('end_date', checkIn);
 
-  // Fetch bookings that conflict with the date range
+  // Fetch reserving bookings that overlap the requested range (same status set as the RPC)
   const { data: bookings } = await supabase
     .from('bookings')
     .select('check_in, check_out')
     .eq('property_id', propertyId)
-    .neq('status', 'Cancelled')
+    .in('status', [...RESERVING_BOOKING_STATUSES])
     .lt('check_in', checkOut)
     .gt('check_out', checkIn);
 
@@ -124,7 +126,9 @@ export async function calculateRangePrice(
   const breakdown: DayPricing[] = [];
   let total = 0;
 
-  for (let d = new Date(checkInDate); d < checkOutDate; d.setDate(d.getDate() + 1)) {
+  // Iterate UTC calendar days so a local timezone or DST change cannot skip or repeat a night.
+  const lastNightExclusive = new Date(toDay(checkOutDate));
+  for (let d = new Date(toDay(checkInDate)); d < lastNightExclusive; d.setUTCDate(d.getUTCDate() + 1)) {
     const dateStr = d.toISOString().split('T')[0];
 
     // Check if blocked by special event
@@ -385,6 +389,34 @@ export async function previewPricing(
   return { success: true, data: { total, breakdown: bounded } };
 }
 
+/** Next calendar day (YYYY-MM-DD) after a YYYY-MM-DD date, in UTC. */
+function nextDay(date: string): string {
+  return new Date(Date.parse(date) + 86_400_000).toISOString().slice(0, 10);
+}
+
+/**
+ * Group unavailable nights into contiguous half-open intervals with a reason.
+ * Reasons use the public vocabulary: "Booking conflict", "Host blocked", or
+ * "Blocked: <event>" for a blocked special event.
+ */
+export function unavailableRuns(
+  breakdown: DayPricing[],
+): Array<{ start: string; end: string; reason: string }> {
+  const runs: Array<{ start: string; end: string; reason: string }> = [];
+  for (const day of breakdown) {
+    if (day.is_available) continue;
+    const reason =
+      day.reason === 'Already booked' ? 'Booking conflict' : (day.reason ?? 'Unavailable');
+    const last = runs[runs.length - 1];
+    if (last && last.reason === reason && last.end === day.date) {
+      last.end = nextDay(day.date);
+    } else {
+      runs.push({ start: day.date, end: nextDay(day.date), reason });
+    }
+  }
+  return runs;
+}
+
 /**
  * Return a full price quote for a stay: base rate breakdown, dynamic adjustments,
  * platform fee, and total. The total here is what booking creation will charge.
@@ -454,52 +486,15 @@ export async function getPropertyQuote(
   const baseRate = listing.base_price_per_night;
   const propertyUpdatedAt = listing.updated_at;
 
-  // Check for booked dates
-  const { data: bookings } = await supabase
-    .from('bookings')
-    .select('check_in, check_out')
-    .eq('property_id', propertyId)
-    .neq('status', 'Cancelled')
-    .lt('check_in', end)
-    .gt('check_out', start);
-
-  // Check for availability blocks
-  const { data: blocks } = await supabase
-    .from('availability_ranges')
-    .select('start_date, end_date')
-    .eq('property_id', propertyId)
-    .eq('is_available', false)
-    .lt('start_date', end)
-    .gt('end_date', start);
-
-  // Build unavailable intervals list
-  const unavailableIntervals: Array<{ start: string; end: string; reason: string }> = [];
-
-  if (bookings && bookings.length > 0) {
-    for (const booking of bookings as { check_in: string; check_out: string }[]) {
-      unavailableIntervals.push({
-        start: booking.check_in,
-        end: booking.check_out,
-        reason: 'Booking conflict',
-      });
-    }
-  }
-
-  if (blocks && blocks.length > 0) {
-    for (const block of blocks as { start_date: string; end_date: string }[]) {
-      unavailableIntervals.push({
-        start: block.start_date,
-        end: block.end_date,
-        reason: 'Host blocked',
-      });
-    }
-  }
-
-  // Calculate pricing
+  // Price the stay first. The day-by-day breakdown is the single source of truth
+  // for availability: a night is unavailable if it is booked, host-blocked or
+  // blocked by a special event. Deriving the quote from it keeps the displayed
+  // availability, the checkout and the stored total on one definition.
   const rangeResult = await calculateRangePrice(propertyId, start, end);
   if (!rangeResult.success) return { success: false, error: rangeResult.error };
 
   const { breakdown } = rangeResult.data!;
+  const unavailableIntervals = unavailableRuns(breakdown);
   const nights = breakdown.filter((d) => d.is_available).length;
   const subtotal = Math.round(baseRate * nights * 100) / 100;
   const dynamicTotal = Math.round(rangeResult.data!.total * 100) / 100;

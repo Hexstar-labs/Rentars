@@ -103,5 +103,6 @@
   "00070_booking_modification_expiry.sql": "451a72e004ac8a4bf0be9734a9e8fde872204cb4e338d8972b477e93fffd7db6",
   "00071_booking_property_fk_restrict.sql": "fd10b4c50b081d07cfea090f2cf3349fa0bebbf6c2ad1a917d21d1a345043722",
   "00072_property_slug_immutability.sql": "380b7ddf1f72aeb803bf10e2c89d311cc12bc8909c31de6291eef4d7dc163503",
+  "00073_reserving_status_exclusion.sql": "35e5b6ad14489618af7cebe1e3807b1a13994c116cd33affd3f1b8b04223a4e7",
   "007_create_reconciliation_cases.sql": "5c2582b68f59154a4a2ec7fe401a345bc81397108309a32cc7cb578caee17065"
 }

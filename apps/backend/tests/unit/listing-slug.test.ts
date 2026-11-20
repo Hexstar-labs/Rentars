@@ -31,8 +31,9 @@ mock.module('../../src/config/supabase.js', () => ({
   },
 }));
 
+// Isolated instance: see listing-availability.test.ts for why.
 const { createProperty, updateProperty, getPropertyBySlug } = await import(
-  '../../src/services/property.service.js'
+  '../../src/services/property.service.ts?slug-spec'
 );
 
 const ID_A = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
